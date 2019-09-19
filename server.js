@@ -1,18 +1,33 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const session = require('express-session')
+const restricted = require('./restricted-middleware.js')
 
 const db = require('./data/dbConfig.js')
 
 const server = express();
 
+const sessionCofig = {
+    name: 'notsession', 
+    secret: 'nobody tosses a dwarf!',
+    cookie: {
+      maxAge: 1 * 24 * 60 * 60 * 1000,
+      secure: true,
+      httpOnly: true
+    },
+    resave: false,
+    saveUninitialized: false,
+}
+
 server.use(express.json())
+server.use(session(sessionCofig));
 
 
 server.get('/', (req, res) => {
     res.send('api is up')
 });
 
-server.get('/users', (req, res) => {
+server.get('/users', restricted, (req, res) => {
     db('users')
     .then(users => {
         res.status(200).json(users)
@@ -31,6 +46,7 @@ server.post('/register', (req, res) => {
     console.log(user.password)
     db('users').insert(user)
     .then(registeredUser => {
+        req.session.user = registeredUser;
         res.status(200).json(registeredUser)
     })
     .catch(error => {
@@ -48,6 +64,7 @@ server.post('/login', (req, res) => {
     .first()
     .then(user => {
         if(user && bcrypt.compareSync(password , user.password)){
+            req.session.user = user;
             res.status(200).json({
                 message: `welcome ${user.username}`
             })
